@@ -142,32 +142,70 @@ for i = 1:size(trajectory_plan.gait_names,2)
     gait_perform_seq_FK = string(trajectory_plan.gait_names(i));
     sequence_length = trajectory_plan.gait_durations(1,i);
     [dp, dp_theta] = msoro_locomotion_related.find_gait_info;
-    
+
+    if i == 1
+        current_position = initial_position;
+        current_orientation = initial_orientation;
+        %         fk_pose(1,:) = [initial_position',initial_orientation];
+        fk_pose(1,:) = initial_position';
+        fk_theta(1,:) = current_orientation;
+    end
+    [new_position,current_orientation,orientation_theta] = FK_simulation_step(dp,dp_theta,sequence_length,current_position,current_orientation(end,end));
+    current_position = new_position(:,end);
+    %     fk_pose(i+1,:) = [new_position',current_orientation];
+    fk_pose = [fk_pose' new_position];
+    fk_pose = fk_pose';
+    fk_theta = [fk_theta;orientation_theta];
+end
+
+% Obatining trajectory pose for plotting
+trajectory_position = fk_pose';
+fk_pose_data{fk_pose_count+1} = trajectory_position;
+clear fk_pose;
+clear fk_theta;
+
+% Visualize result
+%   Extract MSoRo outline
+msoro_img_file = MSORO_PGM;
+msoro_img_scaling = 35/525.3047;   % pixel-to-cm (i.e. cm/px) scaling for MSoRo image
+num_outline_pnts = 500;
+msoro_outline = planning.RTGaitPlanner.img2msoroOutline(msoro_img_file, msoro_img_scaling, num_outline_pnts);  % MSoRo outline coordinates (cm)
+
+%   Plot trajectory /w MSoRo outline overlaid
+fig_hdl = figure;
+scen_props.image = cf;
+scen_props.px2cm = gridS.dg;
+scen_props.radStop = 50*scen_props.px2cm;
+scen_props.startPose = start_pose;
+scen_props.goalPosition = goal_position;
+planning.RTGaitPlanner.plotTrajectory(trajectory_plan, scen_props, gait_library, fig_hdl, msoro_outline);
+keyboard
+input('Press <Enter> to continue');
 
 
 
 % % Rotation Gaits
 % gait_library(1,1).robo_states = [12,13,8,10,7];
-% 
+%
 % gait_library(1,1).delta_poses = [];
 % gait_library(1,1).var_delta_poses = [];
 % gait_library(1,1).Var_Delta_Pose = [];
 % gait_library(1,1).twists = [];
-% 
+%
 % delta_pose_robo = [1.31108951413925;-1.29018833611612;0.269217337390497];
 % gait_library(1,1).Delta_Pose = delta_pose_robo;
-% 
+%
 % delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
 %     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
 %     0, 0, 1 ];
 % twist_mat = logm(delta_pose_mat)/delta_time_rot;
 % twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
-% 
+%
 % gait_library(1,1).Twist = twist;
-% 
+%
 % rot_gaits = gait_library(1);     % rotational gaits
-% 
-% 
+%
+%
 
 
 % % (1) Translation
@@ -175,60 +213,60 @@ for i = 1:size(trajectory_plan.gait_names,2)
 % gait_library(1,2).var_delta_poses = [];
 % gait_library(1,2).Var_Delta_Pose = [];
 % gait_library(1,2).twists = [];
-% 
+%
 % delta_pose_robo =  [-0.119441013597259;0.791254818091396;-0.0629436317841334];
 % gait_library(1,2).Delta_Pose = delta_pose_robo;
-% 
+%
 % delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
 %     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
 %     0, 0, 1 ];
 % twist_mat = logm(delta_pose_mat)/delta_time_trans;
 % twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
 % gait_library(1,2).Twist = twist;
-% 
-% 
-% 
+%
+%
+%
 % % (2) Translation
 % gait_library(1,3).delta_poses = [];
 % gait_library(1,3).var_delta_poses = [];
 % gait_library(1,3).Var_Delta_Pose = [];
 % gait_library(1,3).twists = [];
-% 
+%
 % delta_pose_robo =  [-0.791254818091396;-0.119441013597259;-0.0629436317841334];
 % gait_library(1,3).Delta_Pose = delta_pose_robo;
-% 
+%
 % delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
 %     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
 %     0, 0, 1 ];
 % twist_mat = logm(delta_pose_mat)/delta_time_trans;
 % twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
 % gait_library(1,3).Twist = twist;
-% 
+%
 % % (3) Translation
 % gait_library(1,4).delta_poses = [];
 % gait_library(1,4).var_delta_poses = [];
 % gait_library(1,4).Var_Delta_Pose = [];
 % gait_library(1,4).twists = [];
-% 
+%
 % delta_pose_robo = [0.119441013597259;-0.791254818091396;-0.0629436317841334];
 % gait_library(1,4).Delta_Pose = delta_pose_robo;
-% 
+%
 % delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
 %     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
 %     0, 0, 1 ];
 % twist_mat = logm(delta_pose_mat)/delta_time_trans;
 % twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
 % gait_library(1,4).Twist = twist;
-% 
+%
 % % (4) Translation
 % gait_library(1,5).delta_poses = [];
 % gait_library(1,5).var_delta_poses = [];
 % gait_library(1,5).Var_Delta_Pose = [];
 % gait_library(1,5).twists = [];
-% 
+%
 % delta_pose_robo = [0.791254818091396;0.119441013597259;-0.0629436317841334];
 % gait_library(1,5).Delta_Pose = delta_pose_robo;
-% 
+%
 % delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
 %     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
 %     0, 0, 1 ];
@@ -240,7 +278,7 @@ for i = 1:size(trajectory_plan.gait_names,2)
 % trans_gaits = gait_library(2:5);
 
 % rtGaitPlanner.setGaits( rot_gaits, trans_gaits );
-% 
+%
 % vis_config = [];
 % vis_config.mode = 1;
 % rtGaitPlanner.configureVisualization(vis_config);

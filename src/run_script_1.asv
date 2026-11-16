@@ -1,0 +1,315 @@
+clear all;
+clc;
+
+%[] Input video name for writing
+vid_name = 'Trial_Black_1';
+%[] Initalize object to write tracked video frames
+params.vwrite_tracked = VideoWriter(append(vid_name,'_gcf'),'MPEG-4');
+open(params.vwrite_tracked);
+
+%[] Initialize camera and camera properties
+choose_cam = menu("Initialize camera",'Yes','No');
+% Camera for tracking
+if choose_cam == 1
+    cam = webcam(1);
+    cam.Resolution = '1920x1080';
+    preview(cam);
+end
+choose_cam_prop = menu("Adjust Camera properties",'Yes','No');
+if choose_cam_prop == 1
+    cam = camera_properties_marker_1920_Blue(cam);
+    cam.Resolution = '1920x1080';
+end
+
+%Distortion parameter
+% distortion = load('D:\Arun Niddish\Vision\Visual Tracking\Callibration images(1920x1080)\cameraParams');   %Parameters for distortion correction for 1920x1080
+distortion =load('cameraParams.mat');
+
+pause(2);
+setup_img = cam.snapshot;
+setup_img = undistortImage(setup_img,distortion.cameraParams);
+
+clear cam;
+
+%[] World data's
+world_params = world_data(setup_img);
+
+obstacle_bin_img = world_params.obstacle_bin_img;
+obstacle_bin_img = im2uint8(obstacle_bin_img);
+robo_init_position = [mean(world_params.robo_init_position(:,1)) mean(world_params.robo_init_position(:,2))]; % In pixel
+target_position = world_params.target_position;  % In pixel
+obstaclesBB = world_params.obstaclesBB;   % Rectangular Bounding Box
+
+%[] World parameters
+pixel_to_cm = 8.5254;
+
+% [0] == Script usage
+% GAIT_LIBRARY_MAT = 'data/gait_library_5.mat';
+GAIT_LIBRARY_MAT = 'data/gait_lib_threaded.mat';
+MSORO_PGM = 'data/starfish1.pgm';
+
+%[] Grid world properties
+% gridS.dg = 1.565430166666667;     % grid size, or pixels-to-cm (cm/px) conversion
+gridS.dg = (1920/pixel_to_cm)/336;    % grid size, or grids-to-cm (cm/px) conversion
+gridS.cmin = [0, 0];              % physical world coordinates cooresponding to grid world bottom-left location
+gridS.size = [336, 336];          % grid world dimensions [x, y]
+
+% Cost map construction
+rad_falloff = 23;             % radial decay constant for obstacle costs (grid units)
+% tune this between ~20-25 to adjust % trajectory results
+
+% Planning parameters
+obstacle_threshold = 20;      % cost value at which a location is identified as obstacle
+stop_radius = 23*gridS.dg;    % goal radius within which planning completes - in cm
+
+% [1] == Script setup
+addpath('../ivalibs/fastmarch');
+addpath('../ivalibs/groups');
+addpath('../ivalibs/control');
+addpath('../');
+
+set(groot, 'defaultAxesTickLabelInterpreter','latex');
+set(groot, 'defaultTextInterpreter','latex');
+
+world_img = obstacle_bin_img;
+start_pose = [robo_init_position(1,1)/pixel_to_cm ; robo_init_position(1,2)/pixel_to_cm ; 0];  % In cm
+goal_position = target_position'/pixel_to_cm;   % In cm
+
+% [3] == Configure trajectory planner
+%  [3a] == Instantiate and configure RTGaitPlanner
+params.gridS = gridS;
+params.obstacle_threshold = obstacle_threshold;
+params.radStop = stop_radius;
+rtGaitPlanner = planning.RTGaitPlanner(params);
+
+%  [3b] == Set planning scenario (world)
+cf = rtGaitPlanner.setScenario( world_img, rad_falloff );
+
+%  [3c] == Set MSoRo gaits for planning
+gait_library = load(GAIT_LIBRARY_MAT).gait_lib_threaded;
+% rot_gaits = gait_library(1);     % rotational gaits
+% % trans_gaits = gait_library(2:3:5);
+% % trans_gaits = [gait_library(2) gait_library(4) gait_library(5)];
+% trans_gaits = gait_library(2:5);
+
+delta_time_rot = 0.450*5;
+delta_time_trans = 0.450*3;
+
+% Rotation
+gait_library(1,1).robo_states = [12,13,8,10,7]; 
+
+gait_library(1,1).delta_poses = [];
+gait_library(1,1).var_delta_poses = [];
+gait_library(1,1).Var_Delta_Pose = [];
+gait_library(1,1).twists = [];
+
+delta_pose_robo = [1.31108951413925;-1.29018833611612;0.269217337390497];
+gait_library(1,1).Delta_Pose = delta_pose_robo;
+
+delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+    0, 0, 1 ];
+twist_mat = logm(delta_pose_mat)/delta_time_rot;
+twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+
+gait_library(1,1).Twist = twist;
+
+rot_gaits = gait_library(1);     % rotational gaits
+
+% (1) Translation
+gait_library(1,2).delta_poses = [];
+gait_library(1,2).var_delta_poses = [];
+gait_library(1,2).Var_Delta_Pose = [];
+gait_library(1,2).twists = [];
+
+delta_pose_robo =  [-0.119441013597259;0.791254818091396;-0.0629436317841334];
+gait_library(1,2).Delta_Pose = delta_pose_robo;
+
+delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+    0, 0, 1 ];
+twist_mat = logm(delta_pose_mat)/delta_time_trans;
+twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+gait_library(1,2).Twist = twist;
+
+% (2) Translation
+gait_library(1,3).delta_poses = [];
+gait_library(1,3).var_delta_poses = [];
+gait_library(1,3).Var_Delta_Pose = [];
+gait_library(1,3).twists = [];
+
+delta_pose_robo =  [-0.791254818091396;-0.119441013597259;-0.0629436317841334];
+gait_library(1,3).Delta_Pose = delta_pose_robo;
+
+delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+    0, 0, 1 ];
+twist_mat = logm(delta_pose_mat)/delta_time_trans;
+twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+gait_library(1,3).Twist = twist;
+
+% (3) Translation
+gait_library(1,4).delta_poses = [];
+gait_library(1,4).var_delta_poses = [];
+gait_library(1,4).Var_Delta_Pose = [];
+gait_library(1,4).twists = [];
+
+delta_pose_robo = [0.119441013597259;-0.791254818091396;-0.0629436317841334];
+gait_library(1,4).Delta_Pose = delta_pose_robo;
+
+delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+    0, 0, 1 ];
+twist_mat = logm(delta_pose_mat)/delta_time_trans;
+twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+gait_library(1,4).Twist = twist;
+
+% (4) Translation
+gait_library(1,5).delta_poses = [];
+gait_library(1,5).var_delta_poses = [];
+gait_library(1,5).Var_Delta_Pose = [];
+gait_library(1,5).twists = [];
+
+delta_pose_robo = [0.791254818091396;0.119441013597259;-0.0629436317841334];
+gait_library(1,5).Delta_Pose = delta_pose_robo;
+
+delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+    0, 0, 1 ];
+twist_mat = logm(delta_pose_mat)/delta_time_trans;
+twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+gait_library(1,5).Twist = twist;
+
+% All translation
+trans_gaits = gait_library(2:5);
+
+rtGaitPlanner.setGaits( rot_gaits, trans_gaits );
+
+vis_config = [];
+vis_config.mode = 1;
+rtGaitPlanner.configureVisualization(vis_config);
+
+% [4] == Plan discrete-time controlled trajectory
+trajectory_plan = rtGaitPlanner.planTrajectory(SE2(start_pose(1:2), start_pose(3)), goal_position);
+trajectory_data{1} = trajectory_plan;
+
+%[2] Forward Kinematics of trajectory poses
+SE2_script = @(theta) [cos(theta),-sin(theta); sin(theta),cos(theta)];
+initial_position = start_pose(1:2,:);
+initial_orientation = 0;
+fk_pose_count = 0;
+for i = 1:size(trajectory_plan.gait_names,2)
+    gait_perform_seq_FK = string(trajectory_plan.gait_names(i));
+    sequence_length = trajectory_plan.gait_durations(1,i);
+    if gait_perform_seq_FK == "B"
+        dp = gait_library(1,1).Delta_Pose(1:2,1);
+        dp_theta = gait_library(1,1).Delta_Pose(3,1);
+    end
+    if gait_perform_seq_FK == "G"
+        dp = gait_library(1,2).Delta_Pose(1:2,1);
+        dp_theta = gait_library(1,2).Delta_Pose(3,1);
+    end
+    if gait_perform_seq_FK == "I"
+        dp = gait_library(1,3).Delta_Pose(1:2,1);
+        dp_theta = gait_library(1,3).Delta_Pose(3,1);
+    end
+    if gait_perform_seq_FK == "J"
+        dp = gait_library(1,4).Delta_Pose(1:2,1);
+        dp_theta = gait_library(1,4).Delta_Pose(3,1);
+    end
+    if gait_perform_seq_FK == "K"
+        dp = gait_library(1,5).Delta_Pose(1:2,1);
+        dp_theta = gait_library(1,5).Delta_Pose(3,1);
+    end
+    clear gait_perform_dir;
+    if i == 1
+        current_position = initial_position;
+        current_orientation = initial_orientation;
+        %         fk_pose(1,:) = [initial_position',initial_orientation];
+        fk_pose(1,:) = initial_position';
+        fk_theta(1,:) = current_orientation;
+    end
+    [new_position,current_orientation,orientation_theta] = FK_simulation_step(dp,dp_theta,sequence_length,current_position,current_orientation(end,end));
+    current_position = new_position(:,end);
+    %     fk_pose(i+1,:) = [new_position',current_orientation];
+    fk_pose = [fk_pose' new_position];
+    fk_pose = fk_pose';
+    fk_theta = [fk_theta;orientation_theta];
+end
+
+% Obatining trajectory pose for plotting
+trajectory_position = fk_pose';
+fk_pose_data{fk_pose_count+1} = trajectory_position;
+clear fk_pose;
+clear fk_theta;
+
+% Visualize result
+%   Extract MSoRo outline
+msoro_img_file = MSORO_PGM;
+msoro_img_scaling = 35/525.3047;   % pixel-to-cm (i.e. cm/px) scaling for MSoRo image
+num_outline_pnts = 500;
+msoro_outline = planning.RTGaitPlanner.img2msoroOutline(msoro_img_file, msoro_img_scaling, num_outline_pnts);  % MSoRo outline coordinates (cm)
+
+%   Plot trajectory /w MSoRo outline overlaid
+fig_hdl = figure;
+scen_props.image = cf;
+scen_props.px2cm = gridS.dg;
+scen_props.radStop = 50*scen_props.px2cm;
+scen_props.startPose = start_pose;
+scen_props.goalPosition = goal_position;
+planning.RTGaitPlanner.plotTrajectory(trajectory_plan, scen_props, gait_library, fig_hdl, msoro_outline);
+keyboard
+input('Press <Enter> to continue');
+
+%[] Tracking parameters
+params.number_of_markers = 4;
+params.overlay = 0;
+params.stop_radius = stop_radius*pixel_to_cm;
+params.target_position = target_position;
+params.obstaclesBB = obstaclesBB;
+params.pixel_to_cm = pixel_to_cm;
+%params.PrevPt
+%params.P0
+
+% Initilaize object for online tracking
+tracker_obj = OnlineTracking(params);
+PrevPt = [];
+P0 = [];
+robo_centroid = [];
+
+% Uncomment this if microcontroller is Arduino Uno based and Serial
+% Communication
+% %[] Initiating object for class - Arduino
+% % msoro_robo = MSoRo_IO(params);
+% msoro_robo = MSoRo_IO();
+% 
+% %  MSoRo serial port configuration
+% port = 'COM11';
+% baud = 9600;
+% timeout = 120;
+% 
+% % Connect to arduino serial port
+% msoro_robo.connect(port,baud,timeout);
+% pause(3);
+
+%[] Initiating object for class - Seeeduino - BLE communication
+% msoro_robo = MSoRo_IO(params);
+msoro_robo = MSoRo_IO_Seeeduino();
+
+%  MSoRo BLE configuration
+ble_all_device = blelist;
+device_name = "Seeeduino";
+timeout = 120;
+% port = 'COM11';
+% baud = 9600;
+
+
+% Connect to arduino serial port
+msoro_robo.connect(device_name, timeout, ble_all_device);
+pause(3);
+
+%[0] Defining gait definition manually
+gait_trans_seq = {[3 15 1],[2 8 1],[9 12 1],[5 14 1],[16 7 5 11 14]};
+gait_names = {'G','I','J','K','B'};
+
+msoro_robo.define_gait(gait_trans_seq,gait_names);

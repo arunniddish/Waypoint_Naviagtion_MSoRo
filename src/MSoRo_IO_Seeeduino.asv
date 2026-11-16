@@ -1,0 +1,156 @@
+%============================= MSoRo_IO =============================
+%
+% BLE interface to communicate and command MSoRo soft mobile robot
+% (Seeeduino XIAO, Nordic UART Service style firmware).
+%
+% Requires: MATLAB Bluetooth Low Energy support (Instrument Control
+% Toolbox), Windows 10+/macOS with a BLE-capable adapter.
+%
+% ============================= MSoRo_IO ===========================
+classdef MSoRo_IO_Seeeduino < handle
+    properties (Access = public)
+        all_ble_device;
+        ble_props; % name, timeout, UUIDs
+        % serial_data_rcvd; % boolean flag: a complete line was received
+        % serial_data; % cell array of received lines
+        ble_device; % ble object
+        ble_characteristics; % Read, Write properties
+        % rx_char; % MATLAB -> XIAO (write)
+        % tx_char; % XIAO -> MATLAB (notify)
+    end
+    properties (Access = private)
+        ble_open;
+        rx_buffer; % partial-line accumulator
+        line_queue; % complete lines waiting to be consumed
+        user_cb; % optional user callback (receives each line)
+    end
+
+    properties (Constant)
+        wait_time = 7;
+        % % Nordic UART Service UUIDs -- must match the firmware
+        % SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+        % RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"; % write to robot
+        % TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"; % notify from robot
+        % CHUNK_BYTES = 20; % safe payload for default 23-byte MTU
+    end
+
+    methods
+        function this = MSoRo_IO_Seeeduino(~)
+            this.all_ble_device = [];
+            this.ble_open = false;
+            this.ble_props = struct('name', [], 'timeout', []);
+            % this.serial_data_rcvd = false;
+            % this.serial_data = {};
+            this.ble_device = [];
+            this.ble_characteristics = [];
+            this.rx_buffer = '';
+            this.line_queue = {};
+            this.user_cb = [];
+        end
+
+
+        % Connect to MSoRo over BLE
+        %
+        % a_name: advertised BLE name (e.g. "MSoRo") or MAC address
+        % a_timeout: [optional] connect/scan timeout in sec. (default 30)
+        % a_cb_hdl: [optional] user callback, called with each received line
+        % a_ble_devices: All available ble devices
+        function connect( this, a_name, a_timeout, a_ble_devices )
+            assert( ~this.ble_open, ...
+                '[MSoRo_IO::connect()] Already connected. Disconnect first.');
+            % if nargin < 3 || isempty(a_timeout)
+            % a_timeout = 120;
+            % end
+            %
+            % if nargin >= 4
+            % this.user_cb = a_cb_hdl;
+            % end
+            this.ble_props.name = a_name;
+            this.ble_props.timeout = a_timeout;
+            this.all_ble_device = a_ble_devices;
+            % Automatically retry and connect to the respective device
+            is_empty_or_missing = (this.all_ble_device.Name == "") | ismissing(this.all_ble_device.Name);
+            this.all_ble_device.Name(is_empty_or_missing) = "None";
+            idx_device = find(contains(this.all_ble_device.Name, this.ble_props.name));
+            
+            t0 = tic; 
+            while isempty(this.ble_device) && toc(t0) < this.wait_time
+                this.ble_device = ble(this.all_ble_device.Address(idx_device));
+            end
+            
+            assert(this.ble_device.Connected, 'Exiting...! BLE Device could not be found and it is not connected');
+
+            this.ble_characteristics = characteristic(this.ble_device, this.ble_device.Characteristics.ServiceUUID(4),...
+                this.ble_device.Characteristics.CharacteristicUUID(4));
+
+            disp('Connected to the BLE device');
+
+        end
+
+
+        function define_gait( this, a_transition_seq, a_gait_names )
+            pause(1);
+            % assert( strcmp(class(a_transition_seq), 'cell'), ...
+                % '[MSoRo_IO::define_gait()] Input must be cell array of vectors.'); % check input data format
+            assert(iscell(a_transition_seq),...
+                '[MSoRo_IO::define_gait()] Input must be cell array of vectors.'); % check input data format
+            assert( this.ble_device.Connected, ...
+                '[MSoRo_IO::define_gait()] No BLE device connected.'); % check serial port opened
+            for ii = 1:length(a_transition_seq)
+                % gait_def = sprintf('%s%s%s',sprintf('define %s',a_gait_names{ii}),...
+                % sprintf('%3d',a_transition_seq{ii}),sprintf(' end '))
+                gait_def = sprintf('%s',sprintf('define %s',a_gait_names{ii}));
+                for i = 1:length(a_transition_seq{ii})
+                    gait_def = sprintf('%s%s',gait_def, sprintf(' %d',a_transition_seq{ii}(i)));
+                end
+                gait_def = sprintf('%s%s', gait_def, ' end ');
+                gait_def = string(gait_def);
+                assert(isstring(gait_def), 'Error: Gait definition is not of type string...!');
+                write(this.ble_characteristics, gait_def)
+
+                data_recieve = []; t0 = tic;
+                while isempty(data_recieve) && toc(t0) < this.wait_time
+                    data_recieve = char(read(this.ble_characteristics));
+                    pause(0.5);
+                end
+
+                assert(~isempty(data_recieve), 'Error: Gait definition commands are not recieved by the Seeeduino');
+                disp(data_recieve);
+                
+            end
+        end
+
+        % Start MSoRo gait
+        %
+        % Input(s):
+        %   a_gait_name:        (string) name of gait
+        %   a_num_cycles:       number of gait cycles to run
+        %
+        function start_gait( this, a_gait_name, a_num_cycles )
+            % assert( this.ser_device_open, ...
+                % '[MSoRo_IO::start_gait()] No serial port opened.');    % check serial port opened
+            assert( this.ble_device.Connected, ...
+                '[MSoRo_IO::define_gait()] No BLE device connected.'); % check BLE is connected still
+
+            % if ( nargin < 3 )
+            %     a_num_cycles = 1;     % if not specified, run for 1 gait cycle
+            % end
+            % pause(0.5)  % Changed from pause(1)
+
+            % TODO: map internal gait name from a_gait_name?
+            gait_cmd = sprintf('start %s %d ', a_gait_name, a_num_cycles,'end');
+            gait_cmd = string(gait_cmd);
+            assert(isstring(gait_cmd), 'Error: Gait command is not of type string...!');
+            write(this.ble_characteristics, gait_cmd);
+            fprintf('Gait sequence %s initiated for %d times\n',a_gait_name,a_num_cycles);
+        end
+
+        function misc_commands(cmd)
+            assert( this.ble_device.Connected, ...
+                '[MSoRo_IO::define_gait()] No BLE device connected.'); % check BLE is connected still
+            send_cmd = string(cmd);
+            assert(isstring(send_cmd), 'Error: Gait command is not of type string...!');
+            write(this.ble_characteristics, send_cmd);
+
+    end %methods
+end %class

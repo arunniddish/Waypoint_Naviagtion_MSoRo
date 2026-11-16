@@ -1,0 +1,80 @@
+classdef path_information
+
+    properties(Access = public)
+        transition_time;
+    end
+
+    properties(Access = private)
+    end
+
+    properties(Constant)
+    end
+
+    methods
+
+        function obj = path_information()
+            obj.transition_time = ;
+        end
+
+        function gait_library = build_gait_library(obj, robo_states, delta_pose_robo)
+            gait_library.robo_states = robo_states;
+            gait_library.delta_poses = [];
+            gait_library.var_delta_poses = [];
+            gait_library.Var_Delta_Pose = [];
+            gait_library.twists = [];
+            gait_library.Delta_Pose = delta_pose_robo;
+
+            delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+                sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+                0, 0, 1 ];
+            twist_mat = logm(delta_pose_mat)/delta_time_rot;
+            twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+
+            gait_library.Twist = twist;
+
+        end
+
+        function [dp, dp_theta] = find_gait_info(obj, gait_perform_seq_FK, gait_library)
+
+            if gait_perform_seq_FK == "B"
+                dp = gait_library(1,1).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,1).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "G"
+                dp = gait_library(1,2).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,2).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "I"
+                dp = gait_library(1,3).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,3).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "J"
+                dp = gait_library(1,4).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,4).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "K"
+                dp = gait_library(1,5).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,5).Delta_Pose(3,1);
+            end
+        
+        end
+
+        function [new_position,current_orientation,orientation_theta] = FK_simulation_step(obj, dp, dp_theta, sequence_length, current_position,...
+                current_orientation)
+
+            theta = current_orientation;
+
+            SE2 = @(theta) [cos(theta),-sin(theta); sin(theta),cos(theta)];
+
+            for i = 1:sequence_length
+                new_position(:,i) = (SE2(theta)*dp)+current_position;
+                current_position = new_position(:,i);
+                theta = (current_orientation+dp_theta);
+                current_orientation = theta;
+                orientation_theta(i,:) = theta;
+            end
+        end
+
+    end % Methods
+end % Class
+

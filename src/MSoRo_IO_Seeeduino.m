@@ -153,5 +153,12 @@ classdef MSoRo_IO_Seeeduino < handle
             write(this.ble_characteristics, send_cmd);
         end
 
+        function comp_stats = complete_status(check_complete)
+            assert( this.ble_device.Connected, ...
+                '[MSoRo_IO::define_gait()] No BLE device connected.'); % check BLE is connected still
+            data_recieve = char(read(this.ble_characteristics));
+            comp_stats = contains(data_recieve, check_complete);
+        end
+
     end %methods
 end %class

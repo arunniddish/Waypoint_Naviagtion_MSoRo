@@ -42,6 +42,8 @@ obstaclesBB = world_params.obstaclesBB;   % Rectangular Bounding Box
 
 %[] World parameters
 pixel_to_cm = 8.5254;
+world_params.pixel_to_cm = 8.5254;
+
 
 % [0] == Script usage
 % GAIT_LIBRARY_MAT = 'data/gait_library_5.mat';
@@ -61,6 +63,11 @@ rad_falloff = 23;             % radial decay constant for obstacle costs (grid u
 % Planning parameters
 obstacle_threshold = 20;      % cost value at which a location is identified as obstacle
 stop_radius = 23*gridS.dg;    % goal radius within which planning completes - in cm
+world_params.stop_radius = stop_radius;
+
+%[] Initialize class object for taking decision in the world.
+% Passing world parameters for taking decisions
+msoro_world = world_decision(world_params);
 
 % [1] == Script setup
 addpath('../ivalibs/fastmarch');
@@ -92,99 +99,32 @@ gait_library = load(GAIT_LIBRARY_MAT).gait_lib_threaded;
 % % trans_gaits = [gait_library(2) gait_library(4) gait_library(5)];
 % trans_gaits = gait_library(2:5);
 
+msoro_locomotion_related = path_information();
+
 delta_time_rot = 0.450*5;
 delta_time_trans = 0.450*3;
 
-% Rotation
-gait_library(1,1).robo_states = [12,13,8,10,7]; 
-
-gait_library(1,1).delta_poses = [];
-gait_library(1,1).var_delta_poses = [];
-gait_library(1,1).Var_Delta_Pose = [];
-gait_library(1,1).twists = [];
-
-delta_pose_robo = [1.31108951413925;-1.29018833611612;0.269217337390497];
-gait_library(1,1).Delta_Pose = delta_pose_robo;
-
-delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
-    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
-    0, 0, 1 ];
-twist_mat = logm(delta_pose_mat)/delta_time_rot;
-twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
-
-gait_library(1,1).Twist = twist;
-
+%[] Rotation Gaits
+robo_gait_name_rot = {'B'};
+robo_states_rotation = [12,13,8,10,7];
+delta_pose_robo_rot = [1.31108951413925;-1.29018833611612;0.269217337390497];
+gait_library(1,1) = msoro_locomotion_related.build_gait_library(robo_states_rotation, delta_pose_robo_rot);
 rot_gaits = gait_library(1);     % rotational gaits
 
-% (1) Translation
-gait_library(1,2).delta_poses = [];
-gait_library(1,2).var_delta_poses = [];
-gait_library(1,2).Var_Delta_Pose = [];
-gait_library(1,2).twists = [];
+%[] Translation Gaits
+robo_gait_names_trans = {'G','I','J','K'};
+robo_states_translation = {[5,15,1],[9,12,1],[],[]};
+delta_pose_robo_trans = {[-0.119441013597259;0.791254818091396;-0.0629436317841334], [-0.791254818091396;-0.119441013597259;-0.0629436317841334],...
+    [0.119441013597259;-0.791254818091396;-0.0629436317841334]; [0.791254818091396;0.119441013597259;-0.0629436317841334] };
+for gaitIndex = 1:numel(robo_gait_names_trans)
+    gait_library(1,gaitIndex+1) = msoro_locomotion_related.build_gait_library( ...
+        robo_states_translation{gaitIndex}, delta_pose_robo_trans{gaitIndex});
+end
 
-delta_pose_robo =  [-0.119441013597259;0.791254818091396;-0.0629436317841334];
-gait_library(1,2).Delta_Pose = delta_pose_robo;
-
-delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
-    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
-    0, 0, 1 ];
-twist_mat = logm(delta_pose_mat)/delta_time_trans;
-twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
-gait_library(1,2).Twist = twist;
-
-% (2) Translation
-gait_library(1,3).delta_poses = [];
-gait_library(1,3).var_delta_poses = [];
-gait_library(1,3).Var_Delta_Pose = [];
-gait_library(1,3).twists = [];
-
-delta_pose_robo =  [-0.791254818091396;-0.119441013597259;-0.0629436317841334];
-gait_library(1,3).Delta_Pose = delta_pose_robo;
-
-delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
-    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
-    0, 0, 1 ];
-twist_mat = logm(delta_pose_mat)/delta_time_trans;
-twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
-gait_library(1,3).Twist = twist;
-
-% (3) Translation
-gait_library(1,4).delta_poses = [];
-gait_library(1,4).var_delta_poses = [];
-gait_library(1,4).Var_Delta_Pose = [];
-gait_library(1,4).twists = [];
-
-delta_pose_robo = [0.119441013597259;-0.791254818091396;-0.0629436317841334];
-gait_library(1,4).Delta_Pose = delta_pose_robo;
-
-delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
-    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
-    0, 0, 1 ];
-twist_mat = logm(delta_pose_mat)/delta_time_trans;
-twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
-gait_library(1,4).Twist = twist;
-
-% (4) Translation
-gait_library(1,5).delta_poses = [];
-gait_library(1,5).var_delta_poses = [];
-gait_library(1,5).Var_Delta_Pose = [];
-gait_library(1,5).twists = [];
-
-delta_pose_robo = [0.791254818091396;0.119441013597259;-0.0629436317841334];
-gait_library(1,5).Delta_Pose = delta_pose_robo;
-
-delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
-    sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
-    0, 0, 1 ];
-twist_mat = logm(delta_pose_mat)/delta_time_trans;
-twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
-gait_library(1,5).Twist = twist;
-
-% All translation
 trans_gaits = gait_library(2:5);
 
+%[] Initialize fundamental gaits for path planner for the world
 rtGaitPlanner.setGaits( rot_gaits, trans_gaits );
-
 vis_config = [];
 vis_config.mode = 1;
 rtGaitPlanner.configureVisualization(vis_config);
@@ -192,6 +132,122 @@ rtGaitPlanner.configureVisualization(vis_config);
 % [4] == Plan discrete-time controlled trajectory
 trajectory_plan = rtGaitPlanner.planTrajectory(SE2(start_pose(1:2), start_pose(3)), goal_position);
 trajectory_data{1} = trajectory_plan;
+
+%[2] Forward Kinematics of trajectory poses
+SE2_script = @(theta) [cos(theta),-sin(theta); sin(theta),cos(theta)];
+initial_position = start_pose(1:2,:);
+initial_orientation = 0;
+fk_pose_count = 0;
+for i = 1:size(trajectory_plan.gait_names,2)
+    gait_perform_seq_FK = string(trajectory_plan.gait_names(i));
+    sequence_length = trajectory_plan.gait_durations(1,i);
+    [dp, dp_theta] = msoro_locomotion_related.find_gait_info;
+    
+
+
+
+% % Rotation Gaits
+% gait_library(1,1).robo_states = [12,13,8,10,7];
+% 
+% gait_library(1,1).delta_poses = [];
+% gait_library(1,1).var_delta_poses = [];
+% gait_library(1,1).Var_Delta_Pose = [];
+% gait_library(1,1).twists = [];
+% 
+% delta_pose_robo = [1.31108951413925;-1.29018833611612;0.269217337390497];
+% gait_library(1,1).Delta_Pose = delta_pose_robo;
+% 
+% delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+%     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+%     0, 0, 1 ];
+% twist_mat = logm(delta_pose_mat)/delta_time_rot;
+% twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+% 
+% gait_library(1,1).Twist = twist;
+% 
+% rot_gaits = gait_library(1);     % rotational gaits
+% 
+% 
+
+
+% % (1) Translation
+% gait_library(1,2).delta_poses = [];
+% gait_library(1,2).var_delta_poses = [];
+% gait_library(1,2).Var_Delta_Pose = [];
+% gait_library(1,2).twists = [];
+% 
+% delta_pose_robo =  [-0.119441013597259;0.791254818091396;-0.0629436317841334];
+% gait_library(1,2).Delta_Pose = delta_pose_robo;
+% 
+% delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+%     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+%     0, 0, 1 ];
+% twist_mat = logm(delta_pose_mat)/delta_time_trans;
+% twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+% gait_library(1,2).Twist = twist;
+% 
+% 
+% 
+% % (2) Translation
+% gait_library(1,3).delta_poses = [];
+% gait_library(1,3).var_delta_poses = [];
+% gait_library(1,3).Var_Delta_Pose = [];
+% gait_library(1,3).twists = [];
+% 
+% delta_pose_robo =  [-0.791254818091396;-0.119441013597259;-0.0629436317841334];
+% gait_library(1,3).Delta_Pose = delta_pose_robo;
+% 
+% delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+%     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+%     0, 0, 1 ];
+% twist_mat = logm(delta_pose_mat)/delta_time_trans;
+% twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+% gait_library(1,3).Twist = twist;
+% 
+% % (3) Translation
+% gait_library(1,4).delta_poses = [];
+% gait_library(1,4).var_delta_poses = [];
+% gait_library(1,4).Var_Delta_Pose = [];
+% gait_library(1,4).twists = [];
+% 
+% delta_pose_robo = [0.119441013597259;-0.791254818091396;-0.0629436317841334];
+% gait_library(1,4).Delta_Pose = delta_pose_robo;
+% 
+% delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+%     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+%     0, 0, 1 ];
+% twist_mat = logm(delta_pose_mat)/delta_time_trans;
+% twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+% gait_library(1,4).Twist = twist;
+% 
+% % (4) Translation
+% gait_library(1,5).delta_poses = [];
+% gait_library(1,5).var_delta_poses = [];
+% gait_library(1,5).Var_Delta_Pose = [];
+% gait_library(1,5).twists = [];
+% 
+% delta_pose_robo = [0.791254818091396;0.119441013597259;-0.0629436317841334];
+% gait_library(1,5).Delta_Pose = delta_pose_robo;
+% 
+% delta_pose_mat = [ cos(delta_pose_robo(3)), -sin(delta_pose_robo(3)), delta_pose_robo(1) ; ...
+%     sin(delta_pose_robo(3)), cos(delta_pose_robo(3)), delta_pose_robo(2) ; ...
+%     0, 0, 1 ];
+% twist_mat = logm(delta_pose_mat)/delta_time_trans;
+% twist = [ twist_mat(1, 3), twist_mat(2, 3), twist_mat(2, 1) ];
+% gait_library(1,5).Twist = twist;
+
+% % All translation
+% trans_gaits = gait_library(2:5);
+
+% rtGaitPlanner.setGaits( rot_gaits, trans_gaits );
+% 
+% vis_config = [];
+% vis_config.mode = 1;
+% rtGaitPlanner.configureVisualization(vis_config);
+
+% % [4] == Plan discrete-time controlled trajectory
+% trajectory_plan = rtGaitPlanner.planTrajectory(SE2(start_pose(1:2), start_pose(3)), goal_position);
+% trajectory_data{1} = trajectory_plan;
 
 %[2] Forward Kinematics of trajectory poses
 SE2_script = @(theta) [cos(theta),-sin(theta); sin(theta),cos(theta)];
@@ -282,12 +338,12 @@ robo_centroid = [];
 % %[] Initiating object for class - Arduino
 % % msoro_robo = MSoRo_IO(params);
 % msoro_robo = MSoRo_IO();
-% 
+%
 % %  MSoRo serial port configuration
 % port = 'COM11';
 % baud = 9600;
 % timeout = 120;
-% 
+%
 % % Connect to arduino serial port
 % msoro_robo.connect(port,baud,timeout);
 % pause(3);
@@ -313,3 +369,190 @@ gait_trans_seq = {[3 15 1],[2 8 1],[9 12 1],[5 14 1],[16 7 5 11 14]};
 gait_names = {'G','I','J','K','B'};
 
 msoro_robo.define_gait(gait_trans_seq,gait_names);
+
+%[] Modified trajectory data based on gait window size
+gait_seq_window = 20;
+
+trajectory_gait_data = gait_sequence(trajectory_plan,gait_seq_window);
+trajectory_gait_data = gait_sequence_tunnel(trajectory_plan,gait_seq_window);
+
+gait_perform_seq = trajectory_gait_data.gait_perform_seq;
+num_gait_cycles = trajectory_gait_data.num_gait_cycles;
+
+input('Press <Enter> to start');
+
+%[] Initialize --> Pollable Data Queue-(P)
+P = parallel.pool.PollableDataQueue;
+L = parallel.pool.PollableDataQueue;
+
+%[] Initialize --> parfeval-(f)
+parpool('local',1);
+freq = 25;
+% f = parfeval(@getFrameFromCamera,0,P,L,freq,distortion);
+f = parfeval(@getFrameFromCamera,0,P,L,distortion,vid_name);
+
+pause(1.5);
+
+
+%[] Main script - Polling data's ; Other controls of the code
+
+% Polling data; Tracking;
+idx = 0;
+jj = 1;
+poll_data = 0;
+tracking_window = 10;
+check_complete = "#Completed";  % Flag word to check gait completion status from arduino
+curr_time = 0;
+overall_switch = 0;
+path_switch = 0;
+gait_seq_ind = 0;
+
+while(true)
+
+    if P.QueueLength > 0
+        cam_data = poll(P);
+        newim = cam_data.img;
+        ts = cam_data.time_stamp;
+        poll_data = poll_data + 1;
+        idx = idx + 1;
+        [output_data] = tracker_obj.tracking(newim,PrevPt,P0,robo_centroid,trajectory_position,idx);
+        tracking_data(idx,:) = [output_data.tracking_data(idx,:) ts];
+        PrevPt = reshape(output_data.tracking_data(idx,1:12),[3,4])';
+        robo_centroid = output_data.robo_centroid;
+
+        if idx == 1
+            P0 = output_data.P0;
+        end
+
+    end
+
+    % Check goal status
+    goal_status = msoro_world.goal_check();
+
+    if goal_status
+        disp('Goal/Target position reached by the robot');
+    end
+
+    % Check simulated path vs robot current position relative to it.
+    % 'True' - Robot following the current path within threshold limit.
+    % 'False' - Robot deviated from the planned path crossing the threshold.
+    path_follow_status = msoro_world.path_follow_check();
+
+    if ~path_follow_status
+        disp('Robot deviated from planned path... Replanning required...!');
+
+        % Halt robot's current gait executions.
+        msoro_robo.misc_commands("stop");
+
+        % Replan from the robot's current pose after stopping.
+        % First find the current position after polling all data from the
+        % queue
+        while L.QueueLength > 0
+            rem_data_queue = poll(L);
+        end
+        rem_data_queue = rem_data_queue - poll_data;
+
+        if rem_data_queue > 0
+
+            while(rem_data_queue)
+
+                fprintf('Remaining data left for recalculation = %d\n',rem_data_queue);
+                cam_data = poll(P);
+                newim = cam_data.img;
+                ts = cam_data.time_stamp;
+                poll_data = poll_data + 1;
+                idx = idx + 1;
+                [output_data] = tracker_obj.tracking(newim,PrevPt,P0,robo_centroid,trajectory_position,idx);
+                tracking_data(idx,:) = [output_data.tracking_data(idx,:) ts];
+                PrevPt = reshape(output_data.tracking_data(idx,1:12),[3,4])';
+                robo_centroid = output_data.robo_centroid;
+
+                rem_data_queue = rem_data_queue - 1;
+            end
+
+        end
+        clear rem_data_queue;
+
+        % Calculate new path from current position
+        fprintf('Calculating new path\n');
+        clear trajectory_plan;
+        assert(exist('trajectory_plan','var'), 'Trajectory plan variable not existing...!');
+        trajectory_plan = rtGaitPlanner.planTrajectory(SE2(curr_robo_position/8.524,wrapTo2Pi(output_data.robo_rotated(1))), goal_position);
+        trajectory_gait_data = gait_sequence_tunnel(trajectory_plan,gait_seq_window);
+        gait_perform_seq = trajectory_gait_data.gait_perform_seq;
+        num_gait_cycles = trajectory_gait_data.num_gait_cycles;
+
+        jj = 1;
+
+        % Polling gait switch frames
+        path_switch = path_switch + 1;
+        path_recalc_frames(path_switch) = poll_data;
+
+        % Polling trajectory datas
+        trajectory_data{path_switch+1} = trajectory_plan;
+
+        initial_position = (curr_robo_position/pixel_to_cm)';
+        initial_orientation = wrapTo2Pi(output_data.robo_rotated(1));
+        for i = 1:size(trajectory_plan.gait_names,2)
+            gait_perform_seq_FK = string(trajectory_plan.gait_names(i));
+            sequence_length = trajectory_plan.gait_durations(1,i);
+            if gait_perform_seq_FK == "B"
+                dp = gait_library(1,1).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,1).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "G"
+                dp = gait_library(1,2).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,2).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "I"
+                dp = gait_library(1,3).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,3).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "J"
+                dp = gait_library(1,4).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,4).Delta_Pose(3,1);
+            end
+            if gait_perform_seq_FK == "K"
+                dp = gait_library(1,5).Delta_Pose(1:2,1);
+                dp_theta = gait_library(1,5).Delta_Pose(3,1);
+            end
+            clear gait_perform_dir;
+            if i == 1
+                current_position = initial_position;
+                current_orientation = initial_orientation;
+                %         fk_pose(1,:) = [initial_position',initial_orientation];
+                fk_pose(1,:) = initial_position';
+                fk_theta(1,:) = current_orientation;
+            end
+            [new_position,current_orientation,orientation_theta] = FK_simulation_step(dp,dp_theta,sequence_length,current_position,current_orientation(end,end));
+            current_position = new_position(:,end);
+            %     fk_pose(i+1,:) = [new_position',current_orientation];
+            fk_pose = [fk_pose' new_position];
+            fk_pose = fk_pose';
+            fk_theta = [fk_theta;orientation_theta];
+        end
+
+        % Obatining trajectory pose for plotting
+        %             clear trajectory_position;
+        trajectory_position = fk_pose';
+        fk_pose_data{fk_pose_count+1} = trajectory_position;
+        clear fk_pose;
+        clear fk_theta;
+    end
+
+    while P.QueueLength > 1
+
+        flush_queue = poll(P);
+        poll_data = poll_data + 1;
+
+    end
+    fprintf('Flushed queue after path recalculation\n');
+
+
+end
+
+
+
+
+
+

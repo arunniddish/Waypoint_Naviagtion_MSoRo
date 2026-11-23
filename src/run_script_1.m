@@ -403,7 +403,7 @@ msoro_robo.connect(device_name, timeout, ble_all_device);
 pause(3);
 
 %[0] Defining gait definition manually
-gait_trans_seq = {[3 15 1],[2 8 1],[9 12 1],[5 14 1],[16 7 5 11 14]};
+gait_trans_seq = {[5,15,1],[3,8,1],[9,12,1],[9,14,1],[12,13,8,10,7]};
 gait_names = {'G','I','J','K','B'};
 
 msoro_robo.define_gait(gait_trans_seq,gait_names);

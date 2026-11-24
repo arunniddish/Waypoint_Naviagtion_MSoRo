@@ -268,16 +268,6 @@ void cycle_through_states (int8_t *cycle, int8_t cycle_size) {
     Serial.print(cycle[i]);
     Serial.print(": ");
 
-    //Check if "Kill-Switch" is activated
-    if (MsoroCharacteristic.written())
-    {
-      cmd = BLE_read();
-      if (cmd == "stop")
-      {
-        stop_cycle();
-      }
-    }
-
     for (int j=0; j<=3; j++) {
       Serial.print(state_matrix[j][cycle[i]-1]);
       if (state_matrix[j][cycle[i]-1] == 0 && just_relaxed[j]==false) {
@@ -347,7 +337,7 @@ void define_cycle(){
   //Serial.println("#Defined"); /* This is printed so that Matlab can read it from Serial port for acknowledging that gait defining process 
   //                                  has been completed*/   
 
-  MsoroCharacteristic.writeValue("#Defined - Gait " + gait_name); /* This is printed so that Matlab can read it from Serial port for acknowledging that gait defining process 
+  MsoroCharacteristic.writeValue("#Defined - Gait " + gait_name); /* This is printed so that Matlab can read it from BLE port for acknowledging that gait defining process 
                                      has been completed*/   
 
 }
@@ -416,7 +406,22 @@ void start_cycle()
   {
     cycle_through_states(cycle_gait, size_gait[gait_index]);
 
+    Serial.println(k+1);
+
     MsoroCharacteristic.writeValue("#Completed " + String(k+1)  + " /" + num_cycles + " times");
+
+    // Have stop command here
+    //Check if "Kill-Switch" is activated
+    if (MsoroCharacteristic.written())
+    {
+      cmd = BLE_read();
+      if (cmd == "stop")
+      {
+        stop_cycle();
+        MsoroCharacteristic.writeValue("Kill-switch activated - Gaits stopped"); /* This is printed so that Matlab can read it from Serial port for acknowledging that gait defining process 
+                                     has been completed*/   
+      }
+    }
   } 
 }
 

@@ -142,15 +142,17 @@ classdef MSoRo_IO_Seeeduino < handle
             gait_cmd = string(gait_cmd);
             assert(isstring(gait_cmd), 'Error: Gait command is not of type string...!');
             write(this.ble_characteristics, gait_cmd);
-            fprintf('Gait sequence %s initiated for %d times\n',a_gait_name,a_num_cycles);
+            gait_started = sprintf('Gait sequence %s initiated for %d times\n',a_gait_name,a_num_cycles);
+            disp(gait_started);
         end
 
-        function misc_commands(cmd)
+        function misc_commands(this, cmd)
             assert( this.ble_device.Connected, ...
                 '[MSoRo_IO::define_gait()] No BLE device connected.'); % check BLE is connected still
             send_cmd = string(cmd);
             assert(isstring(send_cmd), 'Error: Gait command is not of type string...!');
             write(this.ble_characteristics, send_cmd);
+            disp('written stop');
         end
 
         function comp_stats = complete_status(check_complete)

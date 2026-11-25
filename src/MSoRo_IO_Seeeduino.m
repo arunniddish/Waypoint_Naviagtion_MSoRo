@@ -14,7 +14,8 @@ classdef MSoRo_IO_Seeeduino < handle
         % serial_data_rcvd; % boolean flag: a complete line was received
         % serial_data; % cell array of received lines
         ble_device; % ble object
-        ble_characteristics; % Read, Write properties
+        ble_characteristics_write; % Write properties
+        ble_characteristics_read; % Read properties
         % rx_char; % MATLAB -> XIAO (write)
         % tx_char; % XIAO -> MATLAB (notify)
     end
@@ -23,6 +24,9 @@ classdef MSoRo_IO_Seeeduino < handle
         rx_buffer; % partial-line accumulator
         line_queue; % complete lines waiting to be consumed
         user_cb; % optional user callback (receives each line)
+        service_uuid;
+        characteristic_read_uuid;
+        characteristic_write_uuid;
     end
 
     properties (Constant)
@@ -46,6 +50,9 @@ classdef MSoRo_IO_Seeeduino < handle
             this.rx_buffer = '';
             this.line_queue = {};
             this.user_cb = [];
+            this.service_uuid = [];
+            this.characteristic_read_uuid = [];
+            this.characteristic_write_uuid = [];
         end
 
 
@@ -72,13 +79,17 @@ classdef MSoRo_IO_Seeeduino < handle
             is_empty_or_missing = (this.all_ble_device.Name == "") | ismissing(this.all_ble_device.Name);
             this.all_ble_device.Name(is_empty_or_missing) = "None";
             idx_device = find(contains(this.all_ble_device.Name, this.ble_props.name));
-            
-            t0 = tic; 
+
+            t0 = tic;
             while isempty(this.ble_device) && toc(t0) < this.wait_time
                 this.ble_device = ble(this.all_ble_device.Address(idx_device));
             end
-            
+
             assert(this.ble_device.Connected, 'Exiting...! BLE Device could not be found and it is not connected');
+
+            this.service_uuid = string(table2cell(msoro_robo.ble_device.Services(3,2)));
+            this.characteristic_write_uuid = string(table2cell(this.ble_device.Characteristics(4,4))); 
+            this.characteristic_read_uuid = string(table2cell(this.ble_device.Characteristics(5,4)));
 
             this.ble_characteristics = characteristic(this.ble_device, this.ble_device.Characteristics.ServiceUUID(4),...
                 this.ble_device.Characteristics.CharacteristicUUID(4));
@@ -91,7 +102,7 @@ classdef MSoRo_IO_Seeeduino < handle
         function define_gait( this, a_transition_seq, a_gait_names )
             pause(1);
             % assert( strcmp(class(a_transition_seq), 'cell'), ...
-                % '[MSoRo_IO::define_gait()] Input must be cell array of vectors.'); % check input data format
+            % '[MSoRo_IO::define_gait()] Input must be cell array of vectors.'); % check input data format
             assert(iscell(a_transition_seq),...
                 '[MSoRo_IO::define_gait()] Input must be cell array of vectors.'); % check input data format
             assert( this.ble_device.Connected, ...
@@ -116,7 +127,7 @@ classdef MSoRo_IO_Seeeduino < handle
 
                 assert(~isempty(data_recieve), 'Error: Gait definition commands are not recieved by the Seeeduino');
                 disp(data_recieve);
-                
+
             end
         end
 
@@ -128,7 +139,7 @@ classdef MSoRo_IO_Seeeduino < handle
         %
         function start_gait( this, a_gait_name, a_num_cycles )
             % assert( this.ser_device_open, ...
-                % '[MSoRo_IO::start_gait()] No serial port opened.');    % check serial port opened
+            % '[MSoRo_IO::start_gait()] No serial port opened.');    % check serial port opened
             assert( this.ble_device.Connected, ...
                 '[MSoRo_IO::define_gait()] No BLE device connected.'); % check BLE is connected still
 

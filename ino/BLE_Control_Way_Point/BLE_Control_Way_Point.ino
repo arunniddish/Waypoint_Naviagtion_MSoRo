@@ -105,11 +105,15 @@ int gait_index;
 int space_index;
 
 /* Initializing Bluetooth Low Energy*/
-#define BLE_UUID                  "2C2FC88C4-F244-5A80-21F1-JU0224E80659"
+//#define BLE_UUID_Service                  "2C2FC88C4-F244-5A80-21F1-JU0224E80659"
 
-BLEService MsoroService( BLE_UUID );
-BLEStringCharacteristic MsoroCharacteristic( BLE_UUID, BLERead | BLEWrite | BLENotify, 50 );
-BLEStringCharacteristic MsoroCharacteristic_read_only( BLE_UUID, BLERead, 50 );
+#define BLE_UUID_Service                  "2C2FC88C-F244-5A80-21F1-A00224E80650"
+#define BLE_UUID_Write                    "2C2FC88C-F244-5A80-21F1-A00224E80651"
+#define BLE_UUID_Read                     "2C2FC88C-F244-5A80-21F1-A00224E80652"
+
+BLEService MsoroService( BLE_UUID_Service );
+BLEStringCharacteristic MsoroCharacteristic( BLE_UUID_Write, BLEWrite | BLENotify, 50 );
+BLEStringCharacteristic MsoroCharacteristic_read_only( BLE_UUID_Read, BLERead, 50 );
 
 
 /* Setup function for communication and state definition (runs once). */

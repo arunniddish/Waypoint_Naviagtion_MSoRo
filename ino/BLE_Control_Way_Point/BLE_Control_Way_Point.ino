@@ -108,7 +108,8 @@ int space_index;
 #define BLE_UUID                  "2C2FC88C4-F244-5A80-21F1-JU0224E80659"
 
 BLEService MsoroService( BLE_UUID );
-BLEStringCharacteristic MsoroCharacteristic( BLE_UUID, BLERead | BLEWrite, 50 );
+BLEStringCharacteristic MsoroCharacteristic( BLE_UUID, BLERead | BLEWrite | BLENotify, 50 );
+BLEStringCharacteristic MsoroCharacteristic_read_only( BLE_UUID, BLERead, 50 );
 
 
 /* Setup function for communication and state definition (runs once). */
@@ -126,6 +127,7 @@ void setup() {
 
   // BLE add characteristics
   MsoroService.addCharacteristic( MsoroCharacteristic );
+  MsoroService.addCharacteristic( MsoroCharacteristic_read_only );
 
   // add service
   BLE.addService( MsoroService );
@@ -155,9 +157,9 @@ void loop()
 
     while ( central.connected() )
     {
-      if ( MsoroCharacteristic.written() )
+      if ( MsoroCharacteristic_read_only.written() )
       {
-        Msoro_cmd = MsoroCharacteristic.value();
+        Msoro_cmd = MsoroCharacteristic_read_only.value();
         cmd = BLE_read();
 
         if (cmd == "Euler1")
@@ -290,6 +292,7 @@ void cycle_through_states (int8_t *cycle, int8_t cycle_size) {
           }
           if (k==3){
             while (millis() -transition_start<= T_transition-1) {
+              BLE.poll();
             delay(1);
             }
             Serial.println("");
@@ -412,7 +415,7 @@ void start_cycle()
 
     // Have stop command here
     //Check if "Kill-Switch" is activated
-    if (MsoroCharacteristic.written())
+    if (MsoroCharacteristic_read_only.written())
     {
       cmd = BLE_read();
       if (cmd == "stop")
